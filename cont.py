@@ -10,7 +10,7 @@ import json
 reader = SimpleMFRC522()
 
 env = configparser.ConfigParser()
-env.read('.env')
+env.read('/home/volumio/rfid/.env')
 
 count_reset = 5
 last_id = None
