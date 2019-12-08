@@ -29,19 +29,37 @@ def play(id):
         uri = search(id)
         if uri:
                 print("Spiele", uri)
-                return
                 payload = { "item": { "uri": uri } }
                 headers = { 'content-type': 'application/json' }
                 r = requests.post("http://localhost:3000/api/v1/replaceAndPlay",
                                   data=json.dumps(payload),
                                   headers=headers)
+                return
                 print(r.text)
                 r = requests.get("http://localhost:3000/api/v1/getState")
                 print(r.text)
         else:
                 print("Neue Karte", id)
+                newcard(id)
 
 
+def newcard(id):
+        headers = {
+                'Authorization': 'Bearer ' + env['Airtable']['apikey'],
+                'Content-Type': 'application/json'
+        }
+        payload = {
+                'fields': {
+                        'ID': str(id)
+                }
+        }
+        r = requests.post("https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards",
+                          data=json.dumps(payload),
+                          headers=headers)
+        print(r.text)
+
+#
+#-----------------------------------------------------
 try:
         print("Warte auf Karte")
         while True:
@@ -66,7 +84,12 @@ try:
                         count = count_reset
                         last_id = None
                         print("Pause")
-                        requests.get("http://localhost:3000/api/v1/commands/?cmd=pause")
+                        try:
+                                requests.get("http://localhost:3000/api/v1/commands/?cmd=pause",
+                                             timeout=0.1
+                                )
+                        except:
+                                pass
 
 finally:
 	GPIO.cleanup()
