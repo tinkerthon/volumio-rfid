@@ -9,34 +9,88 @@ import json
 
 reader = SimpleMFRC522()
 
-cards = configparser.ConfigParser()
-cards.read('cards.ini')
+env = configparser.ConfigParser()
+env.read('/home/volumio/rfid/.env')
 
+count_reset = 5
+last_id = None
+count = count_reset
+
+def search(id):
+        headers = { 'Authorization': 'Bearer ' + env['Airtable']['apikey'] }
+        cards = requests.get('https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards?filterByFormula={ID}=%(id)i' % { 'id': id }, headers=headers).json()
+
+        if 'records' in cards and len(cards['records']) > 0:
+                return cards['records'][0]['fields']['URL']
+        else:
+                return None
+
+def play(id):
+        uri = search(id)
+        if uri:
+                print("Spiele", uri)
+                payload = { "item": { "uri": uri } }
+                headers = { 'content-type': 'application/json' }
+                r = requests.post("http://localhost:3000/api/v1/replaceAndPlay",
+                                  data=json.dumps(payload),
+                                  headers=headers)
+                return
+                print(r.text)
+                r = requests.get("http://localhost:3000/api/v1/getState")
+                print(r.text)
+        else:
+                print("Neue Karte", id)
+                newcard(id)
+
+
+def newcard(id):
+        headers = {
+                'Authorization': 'Bearer ' + env['Airtable']['apikey'],
+                'Content-Type': 'application/json'
+        }
+        payload = {
+                'fields': {
+                        'ID': str(id)
+                }
+        }
+        r = requests.post("https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards",
+                          data=json.dumps(payload),
+                          headers=headers)
+        print(r.text)
+
+#
+#-----------------------------------------------------
 try:
+        print("Warte auf Karte")
         while True:
-                print("Warte auf Karte...")
-                id, _ = reader.read()
-                id = str(id)
-                
-                if id in cards['cards'].keys():
-                        uri = cards['cards'][id].strip()
-                        print("Karte fuer", uri)
-                        payload = { "item": { "uri": uri } }
-                        headers = { 'content-type': 'application/json' }
-                        r = requests.post("http://localhost:3000/api/v1/replaceAndPlay",
-                                          data=json.dumps(payload),
-                                          headers=headers)
-                        print(r.text)
-                        r = requests.get("http://localhost:3000/api/v1/getState")
-                        print(r.text)
-                elif id in cards['commands'].keys():
-                        cmd = cards['commands'][id].strip()
-                        print("Befehl:", cmd)
-                        r = requests.get("http://localhost:3000/api/v1/commands/?cmd=stop")
-                        print(r.text)
+                id = reader.read_id_no_block()
+                if id:
+                        count = count_reset
+                        if id == last_id:
+                                continue
+                        
+                        last_id = id
+                        print("Karte", id)
+                        play(id)
                 else:
-                        print("Karte mit ID", id, " ist noch nicht programmiert")
-                        continue
+                        if not last_id:
+                                continue
+
+                        if count > 0:
+                                #print(" - Counting", count)
+                                count -= 1
+                                continue
+
+                        count = count_reset
+                        last_id = None
+                        print("Pause")
+                        try:
+                                requests.get("http://localhost:3000/api/v1/commands/?cmd=pause",
+                                             timeout=0.1
+                                )
+                        except:
+                                pass
+
 finally:
 	GPIO.cleanup()
 
