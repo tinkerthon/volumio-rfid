@@ -8,11 +8,26 @@ STATE_URL = 'http://localhost:3000/api/v1/getState'
 NEWCARD_URL = 'https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards'
 PAUSE_URL = 'http://localhost:3000/api/v1/commands/?cmd=pause'
 
+SERIAL_PORT = '/dev/ttyAMA0'
+TOGGLE_URL = 'http://localhost:3000/api/v1/commands/?cmd=toggle'
+VOL_URL = 'http://localhost:3000/api/v1/commands/?cmd=volume&volume=%(vol)s'
+
+import serial
+
 import RPi.GPIO as GPIO
 from mfrc522 import SimpleMFRC522
 import configparser
 import requests
 import json
+
+knob = serial.Serial(
+    port=SERIAL_PORT,
+    baudrate=9600,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    bytesize=serial.EIGHTBITS,
+    timeout=1
+)
 
 reader = SimpleMFRC522()
 
@@ -65,11 +80,34 @@ def newcard(id):
                           headers=headers)
         print(r.text)
 
+def check_knob():
+        if knob.in_waiting == 0:
+                return
+
+        x = knob.read(knob.in_waiting)
+        if x[0] == 47:
+                url = TOGGLE_URL
+        elif x[0] == 43:
+                url = VOL_URL % { 'vol': 'plus' }
+        elif x[0] == 45:
+                url = VOL_URL % { 'vol': 'minus' }
+        else:
+                return
+
+        print(x, url)
+        try:
+            requests.get(url, timeout=0.1)
+        except:
+            pass
+
+        
 #
 #-----------------------------------------------------
 try:
         print("Warte auf Karte")
         while True:
+                check_knob()
+
                 id = reader.read_id_no_block()
                 if id:
                         count = count_reset
@@ -98,6 +136,7 @@ try:
                         except:
                                 pass
 
+                        
 finally:
 	GPIO.cleanup()
 
