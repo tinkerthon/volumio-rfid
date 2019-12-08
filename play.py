@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 #-*- coding: utf-8 -*-
 
+INSTALL_PATH = '/home/volumio/rfid/.env'
+SEARCH_URL = 'https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards?filterByFormula={ID}=%(id)i'
+PLAY_URL = 'http://localhost:3000/api/v1/replaceAndPlay'
+STATE_URL = 'http://localhost:3000/api/v1/getState'
+NEWCARD_URL = 'https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards'
+PAUSE_URL = 'http://localhost:3000/api/v1/commands/?cmd=pause'
+
 import RPi.GPIO as GPIO
 from mfrc522 import SimpleMFRC522
 import configparser
@@ -10,7 +17,7 @@ import json
 reader = SimpleMFRC522()
 
 env = configparser.ConfigParser()
-env.read('/home/volumio/rfid/.env')
+env.read(INSTALL_PATH)
 
 count_reset = 5
 last_id = None
@@ -18,7 +25,7 @@ count = count_reset
 
 def search(id):
         headers = { 'Authorization': 'Bearer ' + env['Airtable']['apikey'] }
-        cards = requests.get('https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards?filterByFormula={ID}=%(id)i' % { 'id': id }, headers=headers).json()
+        cards = requests.get(SEARCH_URL % { 'id': id }, headers=headers).json()
 
         if 'records' in cards and len(cards['records']) > 0:
                 return cards['records'][0]['fields']['URL']
@@ -31,12 +38,12 @@ def play(id):
                 print("Spiele", uri)
                 payload = { "item": { "uri": uri } }
                 headers = { 'content-type': 'application/json' }
-                r = requests.post("http://localhost:3000/api/v1/replaceAndPlay",
+                r = requests.post(PLAY_URL,
                                   data=json.dumps(payload),
                                   headers=headers)
                 return
                 print(r.text)
-                r = requests.get("http://localhost:3000/api/v1/getState")
+                r = requests.get(STATE_URL)
                 print(r.text)
         else:
                 print("Neue Karte", id)
@@ -53,7 +60,7 @@ def newcard(id):
                         'ID': str(id)
                 }
         }
-        r = requests.post("https://api.airtable.com/v0/appJTWuESqyjqLY5Q/Cards",
+        r = requests.post(NEWCARD_URL,
                           data=json.dumps(payload),
                           headers=headers)
         print(r.text)
@@ -85,7 +92,7 @@ try:
                         last_id = None
                         print("Pause")
                         try:
-                                requests.get("http://localhost:3000/api/v1/commands/?cmd=pause",
+                                requests.get(PAUSE_URL,
                                              timeout=0.1
                                 )
                         except:
