@@ -6,4 +6,5 @@ ExecStart=/home/volumio/rfid/play.py
 StandardOutput=syslog
 StandardError=syslog
 SyslogIdentifier=rfid
-
+Restart=on-failure
+RestartSec=5s
